@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Library Management System</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f3f6fb;color:#26344a}
+header{background:#fff;padding:17px 22px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 8px #dce3ed}
+header h2{margin:0;color:#2458c6;font-size:20px}
+.layout{display:flex;min-height:calc(100vh - 60px)}
+nav{width:220px;background:#173568;color:white;padding:20px 12px}
+nav button{display:block;width:100%;padding:13px 12px;margin-bottom:7px;border:0;border-radius:7px;text-align:left;background:transparent;color:white;font-size:15px;cursor:pointer}
+nav button:hover,nav button.active{background:#2c60c7}
+main{padding:24px;width:100%;min-width:0}
+h1{margin-top:0;font-size:25px}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:15px;margin:20px 0}
+.card{padding:20px;background:white;border-radius:12px;box-shadow:0 2px 10px #dfe5ef}
+.card p{margin:0;color:#6d7b91}
+.card h2{font-size:28px;color:#2458c6;margin:12px 0 0}
+.panel{background:white;padding:20px;border-radius:12px;margin:18px 0;box-shadow:0 2px 10px #dfe5ef;overflow-x:auto}
+input,select{padding:11px;border:1px solid #d4dce8;border-radius:6px;margin:5px 4px 10px 0;max-width:100%}
+input:focus,select:focus{outline:2px solid #b5cbff}
+button.primary{background:#2458c6;color:white;border:0;border-radius:6px;padding:11px 15px;cursor:pointer}
+button.danger{background:#c83c4a;color:white;border:0;border-radius:5px;padding:7px 9px;cursor:pointer}
+button.small{background:#e5edff;color:#204ca8;border:0;border-radius:5px;padding:7px 9px;cursor:pointer}
+table{border-collapse:collapse;width:100%;min-width:570px}
+th,td{padding:12px;text-align:left;border-bottom:1px solid #e7ebf2;font-size:14px}
+th{background:#f5f8fd;color:#50617c}
+.tag{background:#e4f6eb;color:#167341;padding:5px 8px;border-radius:20px}
+.muted{color:#728098}
+.hidden{display:none}
+@media(max-width:700px){
+ .layout{display:block}
+ nav{width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:10px}
+ nav button{text-align:center;padding:11px 4px;font-size:12px;margin:0}
+ main{padding:14px}
+ .cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ .card{padding:14px}
+ .card h2{font-size:23px}
+ header h2{font-size:17px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h2>📚 Library Management</h2>
+  <span>Admin Panel</span>
+</header>
+
+<div class="layout">
+<nav>
+ <button class="active" onclick="showPage('dashboard',this)">🏠 Dashboard</button>
+ <button onclick="showPage('books',this)">📚 Books</button>
+ <button onclick="showPage('members',this)">👨‍🎓 Members</button>
+ <button onclick="showPage('issue',this)">📖 Issue / Return</button>
+ <button onclick="showPage('reports',this)">📊 Reports</button>
+</nav>
+
+<main>
+<section id="dashboard">
+<h1>Dashboard</h1>
+<p class="muted">Welcome to your Library Management System.</p>
+<div class="cards">
+ <div class="card"><p>Total Books</p><h2 id="totalBooks">0</h2></div>
+ <div class="card"><p>Members</p><h2 id="totalMembers">0</h2></div>
+ <div class="card"><p>Issued Books</p><h2 id="totalIssued">0</h2></div>
+ <div class="card"><p>Overdue Books</p><h2 id="totalOverdue">0</h2></div>
+</div>
+<div class="panel">
+<h3>Recent Transactions</h3>
+<div id="recent"></div>
+</div>
+</section>
+
+<section id="books" class="hidden">
+<h1>Book Management</h1>
+<div class="panel">
+<h3>Add New Book</h3>
+<form id="bookForm">
+<input id="bookTitle" placeholder="Book title" required>
+<input id="bookAuthor" placeholder="Author name" required>
+<input id="bookCategory" placeholder="Category">
+<input id="bookQty" type="number" min="1" value="1" required style="width:100px">
+<button class="primary">+ Add Book</button>
+</form>
+</div>
+<div class="panel">
+<input id="bookSearch" placeholder="Search books..." oninput="renderBooks()">
+<div id="bookTable"></div>
+</div>
+</section>
+
+<section id="members" class="hidden">
+<h1>Member Management</h1>
+<div class="panel">
+<h3>Register Member</h3>
+<form id="memberForm">
+<input id="memberName" placeholder="Full name" required>
+<input id="memberCourse" placeholder="Course / Class">
+<input id="memberPhone" placeholder="Mobile number">
+<input id="memberEmail" type="email" placeholder="Email address">
+<button class="primary">+ Add Member</button>
+</form>
+</div>
+<div class="panel"><div id="memberTable"></div></div>
+</section>
+
+<section id="issue" class="hidden">
+<h1>Issue / Return Books</h1>
+<div class="panel">
+<h3>Issue a Book</h3>
+<form id="issueForm">
+<select id="issueBook" required><option value="">Select book</option></select>
+<select id="issueMember" required><option value="">Select member</option></select>
+<label>Due date:</label>
+<input id="dueDate" type="date" required>
+<button class="primary">Issue Book</button>
+</form>
+<p class="muted">Add books and members before creating an issue record.</p>
+</div>
+<div class="panel">
+<h3>Issue Records</h3>
+<div id="issueTable"></div>
+</div>
+</section>
+
+<section id="reports" class="hidden">
+<h1>Library Reports</h1>
+<div class="cards">
+ <div class="card"><p>Total Copies</p><h2 id="reportCopies">0</h2></div>
+ <div class="card"><p>Available Copies</p><h2 id="reportAvailable">0</h2></div>
+ <div class="card"><p>Returned Books</p><h2 id="reportReturned">0</h2></div>
+ <div class="card"><p>Total Fine</p><h2 id="reportFine">₹0</h2></div>
+</div>
+<div class="panel">
+<h3>Export Data</h3>
+<p>Download a copy of the current library records.</p>
+<button class="primary" onclick="exportData()">Download JSON Backup</button>
+</div>
+</section>
+</main>
+</div>
+
+<script>
+const getData=(key)=>JSON.parse(localStorage.getItem(key)||"[]");
+const saveData=(key,data)=>localStorage.setItem(key,JSON.stringify(data));
+let books=getData("lms_books");
+let members=getData("lms_members");
+let issues=getData("lms_issues");
+
+function id(){return Date.now().toString()+Math.random().toString(16).slice(2,6)}
+function safe(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function showPage(page,btn){
+ document.querySelectorAll("main section").forEach(s=>s.classList.add("hidden"));
+ document.getElementById(page).classList.remove("hidden");
+ document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+ btn.classList.add("active");
+ renderAll();
+}
+function renderBooks(){
+ const q=(document.getElementById("bookSearch")?.value||"").toLowerCase();
+ const list=books.filter(b=>(b.title+" "+b.author+" "+b.category).toLowerCase().includes(q));
+ document.getElementById("bookTable").innerHTML=list.length?`
+ <table><thead><tr><th>Book</th><th>Author</th><th>Category</th><th>Total</th><th>Available</th><th>Action</th></tr></thead><tbody>
+ ${list.map(b=>`<tr><td>${safe(b.title)}</td><td>${safe(b.author)}</td><td>${safe(b.category)}</td><td>${b.qty}</td><td>${b.available}</td><td><button class="danger" onclick="deleteBook('${b.id}')">Delete</button></td></tr>`).join("")}
+ </tbody></table>`:"<p>No books found. Add your first book above.</p>";
+}
+function renderMembers(){
+ document.getElementById("memberTable").innerHTML=members.length?`
+ <table><thead><tr><th>Member ID</th><th>Name</th><th>Course</th><th>Mobile</th><th>Email</th><th>Action</th></tr></thead><tbody>
+ ${members.map(m=>`<tr><td>${safe(m.code)}</td><td>${safe(m.name)}</td><td>${safe(m.course)}</td><td>${safe(m.phone)}</td><td>${safe(m.email)}</td><td><button class="danger" onclick="deleteMember('${m.id}')">Delete</button></td></tr>`).join("")}
+ </tbody></table>`:"<p>No members registered yet.</p>";
+}
+function renderOptions(){
+ const b=document.getElementById("issueBook"),m=document.getElementById("issueMember");
+ const oldB=b.value,oldM=m.value;
+ b.innerHTML='<option value="">Select available book</option>'+books.filter(x=>x.available>0).map(x=>`<option value="${x.id}">${safe(x.title)} (${x.available} available)</option>`).join("");
+ m.innerHTML='<option value="">Select member</option>'+members.map(x=>`<option value="${x.id}">${safe(x.name)} — ${safe(x.code)}</option>`).join("");
+ if([...b.options].some(o=>o.value===oldB))b.value=oldB;
+ if([...m.options].some(o=>o.value===oldM))m.value=oldM;
+}
+function renderIssues(){
+ document.getElementById("issueTable").innerHTML=issues.length?`
+ <table><thead><tr><th>Book</th><th>Member</th><th>Issue Date</th><th>Due Date</th><th>Status / Fine</th><th>Action</th></tr></thead><tbody>
+ ${issues.slice().reverse().map(i=>{
+ let late=i.status==="Issued"&&i.due<new Date().toISOString().slice(0,10);
+ let fine=i.status==="Returned"?i.fine:(late?Math.ceil((Date.now()-new Date(i.due+"T00:00:00").getTime())/86400000)*5:0);
+ return `<tr><td>${safe(i.bookTitle)}</td><td>${safe(i.memberName)}</td><td>${safe(i.date)}</td><td>${safe(i.due)}</td><td>${i.status}${fine>0?" / ₹"+fine:""}</td><td>${i.status==="Issued"?`<button class="small" onclick="returnBook('${i.id}')">Return</button>`:"Returned"}</td></tr>`
+ }).join("")}
+ </tbody></table>`:"<p>No issue records yet.</p>";
+}
+function renderDashboard(){
+ document.getElementById("totalBooks").textContent=books.reduce((s,b)=>s+b.qty,0);
+ document.getElementById("totalMembers").textContent=members.length;
+ document.getElementById("totalIssued").textContent=issues.filter(i=>i.status==="Issued").length;
+ document.getElementById("totalOverdue").textContent=issues.filter(i=>i.status==="Issued"&&i.due<new Date().toISOString().slice(0,10)).length;
+ const recent=issues.slice(-5).reverse();
+ document.getElementById("recent").innerHTML=recent.length?`<table><tr><th>Book</th><th>Member</th><th>Status</th></tr>${recent.map(i=>`<tr><td>${safe(i.bookTitle)}</td><td>${safe(i.memberName)}</td><td>${safe(i.status)}</td></tr>`).join("")}</table>`:"<p>No transactions yet.</p>";
+}
+function renderReports(){
+ document.getElementById("reportCopies").textContent=books.reduce((s,b)=>s+b.qty,0);
+ document.getElementById("reportAvailable").textContent=books.reduce((s,b)=>s+b.available,0);
+ document.getElementById("reportReturned").textContent=issues.filter(i=>i.status==="Returned").length;
+ const fine=issues.reduce((s,i)=>s+(i.status==="Returned"?Number(i.fine||0):0),0);
+ document.getElementById("reportFine").textContent="₹"+fine;
+}
+function renderAll(){renderBooks();renderMembers();renderOptions();renderIssues();renderDashboard();renderReports()}
+document.getElementById("bookForm").addEventListener("submit",e=>{
+ e.preventDefault();
+ const qty=Number(document.getElementById("bookQty").value);
+ if(qty<1)return alert("Quantity must be at least 1.");
+ books.push({id:id(),title:document.getElementById("bookTitle").value.trim(),author:document.getElementById("bookAuthor").value.trim(),category:document.getElementById("bookCategory").value.trim(),qty,available:qty});
+ saveData("lms_books",books);e.target.reset();document.getElementById("bookQty").value=1;renderAll();alert("Book added successfully!");
+});
+document.getElementById("memberForm").addEventListener("submit",e=>{
+ e.preventDefault();
+ members.push({id:id(),code:"MEM"+String(members.length+1).padStart(3,"0"),name:document.getElementById("memberName").value.trim(),course:document.getElementById("memberCourse").value.trim(),phone:document.getElementById("memberPhone").value.trim(),email:document.getElementById("memberEmail").value.trim()});
+ saveData("lms_members",members);e.target.reset();renderAll();alert("Member registered successfully!");
+});
+document.getElementById("issueForm").addEventListener("submit",e=>{
+ e.preventDefault();
+ const b=books.find(x=>x.id===document.getElementById("issueBook").value);
+ const m=members.find(x=>x.id===document.getElementById("issueMember").value);
+ const due=document.getElementById("dueDate").value;
+ if(!b||!m)return alert("Please select a book and a member.");
+ if(b.available<1)return alert("This book is not available.");
+ if(!due||due<new Date().toISOString().slice(0,10))return alert("Choose a valid due date.");
+ b.available--;
+ issues.push({id:id(),bookId:b.id,bookTitle:b.title,memberId:m.id,memberName:m.name,date:new Date().toISOString().slice(0,10),due,status:"Issued",fine:0});
+ saveData("lms_books",books);saveData("lms_issues",issues);e.target.reset();renderAll();alert("Book issued successfully!");
+});
+function returnBook(issueId){
+ const i=issues.find(x=>x.id===issueId);if(!i||i.status!=="Issued")return;
+ const today=new Date().toISOString().slice(0,10);
+ const days=Math.max(0,Math.ceil((new Date(today+"T00:00:00")-new Date(i.due+"T00:00:00"))/86400000));
+ i.status="Returned";i.returnDate=today;i.fine=days*5;
+ const b=books.find(x=>x.id===i.bookId);if(b)b.available++;
+ saveData("lms_books",books);saveData("lms_issues",issues);renderAll();
+ alert("Book returned. Fine: ₹"+i.fine+" (₹5 per overdue day).");
+}
+function deleteBook(bookId){
+ if(issues.some(i=>i.bookId===bookId&&i.status==="Issued"))return alert("Return this book before deleting it.");
+ if(!confirm("Delete this book?"))return;
+ books=books.filter(b=>b.id!==bookId);saveData("lms_books",books);renderAll();
+}
+function deleteMember(memberId){
+ if(issues.some(i=>i.memberId===memberId&&i.status==="Issued"))return alert("This member has an issued book. Return it first.");
+ if(!confirm("Delete this member?"))return;
+ members=members.filter(m=>m.id!==memberId);saveData("lms_members",members);renderAll();
+}
+function exportData(){
+ const blob=new Blob([JSON.stringify({books,members,issues},null,2)],{type:"application/json"});
+ const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="library-backup.json";a.click();URL.revokeObjectURL(a.href);
+}
+renderAll();
+</script>
+</body>
+  </html>
