@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Library Management System</title>
+
+    <!-- React -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+
+    <!-- React DOM -->
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background: #f4f7f6;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        header {
+            background: #1a365d;
+            color: white;
+            padding: 18px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        header h2 {
+            margin-bottom: 5px;
+        }
+
+        nav {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        nav button {
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 10px 14px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        nav button:hover,
+        nav button.active {
+            background: #2b6cb0;
+        }
+
+        .container {
+            max-width: 1100px;
+            width: 95%;
+            margin: 30px auto;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        .card h1 {
+            color: #1a365d;
+            margin-bottom: 20px;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .stat {
+            padding: 25px;
+            border-radius: 10px;
+            background: #ebf8ff;
+            text-align: center;
+        }
+
+        .stat h2 {
+            color: #1a365d;
+            margin-bottom: 8px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-weight: bold;
+            margin-bottom: 7px;
+        }
+
+        input,
+        select,
+        textarea {
+            padding: 11px;
+            border: 1px solid #cbd5e0;
+            border-radius: 5px;
+            font-size: 15px;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #3182ce;
+        }
+
+        .buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button.primary {
+            background: #2b6cb0;
+            color: white;
+            border: none;
+            padding: 11px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button.primary:hover {
+            background: #2c5282;
+        }
+
+        button.reset {
+            background: #e2e8f0;
+            color: #4a5568;
+            border: none;
+            padding: 11px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background: #1a365d;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        footer {
+            text-align: center;
+            padding: 18px;
+            background: #e2e8f0;
+            margin-top: 30px;
+        }
+
+        @media(max-width: 768px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .dashboard {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-group.full {
+                grid-column: auto;
+            }
+
+            table {
+                font-size: 13px;
+            }
+        }
+
+        @media(max-width: 480px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            nav button {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+
+const { useState } = React;
+
+function App() {
+
+    const [page, setPage] = useState("dashboard");
+
+    const [book, setBook] = useState({
+        bookId: "",
+        title: "",
+        author: "",
+        category: "",
+        publisher: "",
+        year: "",
+        quantity: ""
+    });
+
+    const [books, setBooks] = useState([]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+
+        setBook(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
+    const addBook = (e) => {
+        e.preventDefault();
+
+        if (
+            !book.bookId ||
+            !book.title ||
+            !book.author ||
+            !book.category ||
+            !book.quantity
+        ) {
+            alert("Please fill all required fields.");
+            return;
+        }
+
+        setBooks(prev => [...prev, book]);
+
+        alert("Book added successfully!");
+
+        setBook({
+            bookId: "",
+            title: "",
+            author: "",
+            category: "",
+            publisher: "",
+            year: "",
+            quantity: ""
+        });
+    };
+
+    const resetBook = () => {
+        setBook({
+            bookId: "",
+            title: "",
+            author: "",
+            category: "",
+            publisher: "",
+            year: "",
+            quantity: ""
+        });
+    };
+
+    return (
+        <>
+            <header>
+
+                <div>
+                    <h2>📚 Library Management System</h2>
+                    <small>Final Year BCA Mini Project</small>
+                </div>
+
+                <nav>
+
+                    <button
+                        className={page === "dashboard" ? "active" : ""}
+                        onClick={() => setPage("dashboard")}
+                    >
+                        Dashboard
+                    </button>
+
+                    <button
+                        className={page === "books" ? "active" : ""}
+                        onClick={() => setPage("books")}
+                    >
+                        Books
+                    </button>
+
+                    <button
+                        className={page === "members" ? "active" : ""}
+                        onClick={() => setPage("members")}
+                    >
+                        Members
+                    </button>
+
+                    <button
+                        className={page === "issue" ? "active" : ""}
+                        onClick={() => setPage("issue")}
+                    >
+                        Issue Book
+                    </button>
+
+                    <button
+                        className={page === "return" ? "active" : ""}
+                        onClick={() => setPage("return")}
+                    >
+                        Return Book
+                    </button>
+
+                    <button
+                        className={page === "reports" ? "active" : ""}
+                        onClick={() => setPage("reports")}
+                    >
+                        Reports
+                    </button>
+
+                </nav>
+
+            </header>
+
+            <main className="container">
+
+                {/* DASHBOARD */}
+
+                {page === "dashboard" && (
+
+                    <div className="card">
+
+                        <h1>Library Dashboard</h1>
+
+                        <div className="dashboard">
+
+                            <div className="stat">
+                                <h2>0</h2>
+                                <p>Total Books</p>
+                            </div>
+
+                            <div className="stat">
+                                <h2>0</h2>
+                                <p>Total Members</p>
+                            </div>
+
+                            <div className="stat">
+                                <h2>0</h2>
+                                <p>Books Issued</p>
+                            </div>
+
+                            <div className="stat">
+                                <h2>0</h2>
+                                <p>Books Returned</p>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                )}
+
+                {/* BOOK PAGE */}
+
+                {page === "books" && (
+
+                    <div className="card">
+
+                        <h1>Book Management</h1>
+
+                        <form onSubmit={addBook}>
+
+                            <div className="form-grid">
+
+                                <div className="form-group">
+                                    <label>Book ID *</label>
+
+                                    <input
+                                        type="text"
+                                        name="bookId"
+                                        value={book.bookId}
+                                        onChange={handleChange}
+                                        placeholder="Enter Book ID"
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Book Title *</label>
+
+                                    <input
+                                        type="text"
+                                        name="title"
+                                        value={book.title}
+                                        onChange={handleChange}
+                                        placeholder="Enter Book Title"
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Author *</label>
+
+                                    <input
+                                        type="text"
+                                        name="author"
+                                        value={book.author}
+                                        onChange={handleChange}
+                                        placeholder="Enter Author Name"
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Category *</label>
+
+                                    <select
+                                        name="category"
+                                        value={book.category}
+                                        onChange={handleChange}
+                                    >
+                                        <option value="">Select Category</option>
+                                        <option value="Programming">
+                                            Programming
+                                        </option>
+                                        <option value="Database">
+                                            Database
+                                        </option>
+                                        <option value="Networking">
+                                            Networking
+                                        </option>
+                                        <option value="Mathematics">
+                                            Mathematics
+                                        </option>
+                                        <option value="General">
+                                            General
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Publisher</label>
+
+                                    <input
+                                        type="text"
+                                        name="publisher"
+                                        value={book.publisher}
+                                        onChange={handleChange}
+                                        placeholder="Publisher Name"
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Publication Year</label>
+
+                                    <input
+                                        type="number"
+                                        name="year"
+                                        value={book.year}
+                                        onChange={handleChange}
+                                        placeholder="2026"
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Quantity *</label>
+
+                                    <input
+                                        type="number"
+                                        name="quantity"
+                                        value={book.quantity}
+                                        onChange={handleChange}
+                                        placeholder="Enter Quantity"
+                                        min="1"
+                                    />
+                                </div>
+
+                            </div>
+
+                            <div className="buttons">
+
+                                <button
+                                    type="submit"
+                                    className="primary"
+                                >
+                                    Add Book
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="reset"
+                                    onClick={resetBook}
+                                >
+                                    Reset
+                                </button>
+
+                            </div>
+
+                        </form>
+
+                        {books.length > 0 && (
+
+                            <div>
+
+                                <h2 style={{marginTop:"30px"}}>
+                                    Books List
+                                </h2>
+
+                                <table>
+
+                                    <thead>
+                                        <tr>
+                                            <th>Book ID</th>
+                                            <th>Title</th>
+                                            <th>Author</th>
+                                            <th>Category</th>
+                                            <th>Quantity</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+
+                                        {books.map((item, index) => (
+
+                                            <tr key={index}>
+
+                                                <td>{item.bookId}</td>
+                                                <td>{item.title}</td>
+                                                <td>{item.author}</td>
+                                                <td>{item.category}</td>
+                                                <td>{item.quantity}</td>
+
+                                            </tr>
+
+                                        ))}
+
+                                    </tbody>
+
+                                </table>
+
+                            </div>
+
+                        )}
+
+                    </div>
+
+                )}
+
+                {/* MEMBERS */}
+
+                {page === "members" && (
+
+                    <div className="card">
+
+                        <h1>Member Management</h1>
+
+                        <p>
+                            Student/member registration module will be
+                            connected with the MySQL database in the next step.
+                        </p>
+
+                    </div>
+
+                )}
+
+                {/* ISSUE */}
+
+                {page === "issue" && (
+
+                    <div className="card">
+
+                        <h1>Issue Book</h1>
+
+                        <p>
+                            Book issue module will be connected with the
+                            backend database in the next step.
+                        </p>
+
+                    </div>
+
+                )}
+
+                {/* RETURN */}
+
+                {page === "return" && (
+
+                    <div className="card">
+
+                        <h1>Return Book</h1>
+
+                        <p>
+                            Book return and fine calculation module will
+                            be added in the next step.
+                        </p>
+
+                    </div>
+
+                )}
+
+                {/* REPORTS */}
+
+                {page === "reports" && (
+
+                    <div className="card">
+
+                        <h1>Library Reports</h1>
+
+                        <p>
+                            Reports and database statistics will be added
+                            after the backend is connected.
+                        </p>
+
+                    </div>
+
+                )}
+
+            </main>
+
+            <footer>
+                © 2026 Library Management System | BCA Final Year Mini Project
+            </footer>
+
+        </>
+    );
+}
+
+ReactDOM.createRoot(
+    document.getElementById("root")
+).render(<App />);
+
+</script>
+
+</body>
+  </html>
