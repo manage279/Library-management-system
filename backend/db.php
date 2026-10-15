@@ -1,26 +1,11 @@
 <?php
-// db.php ke top par yeh add karein taaki errors screen par HTML ki tarah print na hon
+// Errors ko screen par display hone se rokein taaki JSON kharab na ho
 ini_set('display_errors', 0);
 ini_set('display_startup_errors', 0);
 error_reporting(E_ALL);
 
-// Aapka database connection code (e.g., mysqli connection) yahan hoga...
-$host = "your_host";
-$user = "your_user";
-$pass = "your_password";
-$dbname = "your_db";
-
-try {
-    $conn = new mysqli($host, $user, $pass, $dbname);
-    $conn->set_charset("utf8mb4");
-} catch (Exception $e) {
-    // Agar connection fail ho toh JSON error return karein
-    header('Content-Type: application/json; charset=utf-8');
-    http_response_code(500);
-    echo json_encode(['error' => 'Database Connection Failed: ' . $e->getMessage()]);
-    exit;
-}
-<?php
+// Hamesha JSON header bhejein taaki frontend ko hamesha JSON mile
+header('Content-Type: application/json; charset=utf-8');
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
@@ -33,6 +18,7 @@ $password = getenv("DB_PASSWORD");
 try {
     $conn = mysqli_init();
 
+    // Agar SSL ki zaroorat na ho toh MYSQLI_CLIENT_SSL hata sakte hain, par agar Render/Aiven par hai toh theek hai
     $connected = mysqli_real_connect(
         $conn,
         $host,
@@ -55,5 +41,10 @@ try {
 
     error_log("Database error: " . $e->getMessage());
 
-    die("Database connection failed. Please check your settings.");
+    // HTML/Text ke bajaye clean JSON error return karein
+    echo json_encode([
+        'error' => 'Database connection failed. Please check your settings.',
+        'details' => $e->getMessage()
+    ]);
+    exit;
 }
