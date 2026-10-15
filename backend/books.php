@@ -1,47 +1,52 @@
+
 <?php
 
 require_once __DIR__ . '/db.php';
 
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
 
-$method = $_SERVER['REQUEST_METHOD'];
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+function sendJson($status, $data)
+{
+    http_response_code($status);
+    echo json_encode(
+        $data,
+        JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
+    );
+    exit;
+}
 
 try {
+    if (!isset($conn) || !($conn instanceof mysqli)) {
+        throw new RuntimeException('Database connection unavailable');
+    }
 
-    // GET: Display all books or search books
+    $conn->set_charset('utf8mb4');
+    $method = $_SERVER['REQUEST_METHOD'];
+
+    // GET: List and search books
     if ($method === 'GET') {
-
         $search = trim($_GET['search'] ?? '');
 
         if ($search !== '') {
-
             $stmt = $conn->prepare(
                 "SELECT * FROM books
                  WHERE title LIKE ?
-                 OR author LIKE ?
-                 OR category LIKE ?
+                    OR author LIKE ?
+                    OR isbn LIKE ?
                  ORDER BY id DESC"
             );
 
-            $term = "%{$search}%";
-
-            $stmt->bind_param(
-                "sss",
-                $term,
-                $term,
-                $term
-            );
-
+            $term = '%' . $search . '%';
+            $stmt->bind_param('sss', $term, $term, $term);
             $stmt->execute();
-
             $result = $stmt->get_result();
-
         } else {
-
             $result = $conn->query(
                 "SELECT * FROM books ORDER BY id DESC"
             );
-
         }
 
         $books = [];
@@ -50,208 +55,128 @@ try {
             $books[] = $row;
         }
 
-        echo json_encode($books);
-        exit;
+        sendJson(200, $books);
     }
 
-    // Read JSON request body
-    $data = json_decode(
-        file_get_contents('php://input'),
-        true
-    );
+    if (!in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
+        header('Allow: GET, POST, PUT, DELETE');
+        sendJson(405, ['error' => 'Method not allowed']);
+    }
+
+    $data = json_decode(file_get_contents('php://input'), true);
 
     if (!is_array($data)) {
-        http_response_code(400);
-        echo json_encode([
-            'error' => 'Invalid JSON data'
-        ]);
-        exit;
+        sendJson(400, ['error' => 'Invalid JSON request']);
     }
 
-    // POST: Add a new book
+    // POST: Add a book
     if ($method === 'POST') {
-
         $title = trim($data['title'] ?? '');
         $author = trim($data['author'] ?? '');
         $isbn = trim($data['isbn'] ?? '');
-        $category = trim($data['category'] ?? '');
         $quantity = filter_var(
             $data['quantity'] ?? 1,
             FILTER_VALIDATE_INT
         );
 
-        if (
-            $title === '' ||
-            $author === '' ||
-            $quantity === false ||
-            $quantity < 0
-        ) {
-            http_response_code(422);
-
-            echo json_encode([
+        if ($title === '' || $author === '' ||
+            $quantity === false || $quantity < 0) {
+            sendJson(422, [
                 'error' => 'Valid title, author and quantity are required'
             ]);
-
-            exit;
         }
 
         $stmt = $conn->prepare(
-            "INSERT INTO books
-            (title, author, isbn, category, quantity, available)
-            VALUES (?, ?, NULLIF(?, ''), ?, ?, ?)"
+            "INSERT INTO books (title, author, isbn, quantity)
+             VALUES (?, ?, NULLIF(?, ''), ?)"
         );
 
-        $stmt->bind_param(
-            "ssssii",
-            $title,
-            $author,
-            $isbn,
-            $category,
-            $quantity,
-            $quantity
-        );
-
+        $stmt->bind_param('sssi', $title, $author, $isbn, $quantity);
         $stmt->execute();
 
-        http_response_code(201);
-
-        echo json_encode([
+        sendJson(201, [
+            'success' => true,
             'message' => 'Book added successfully',
             'id' => $conn->insert_id
         ]);
-
-        exit;
     }
 
     // PUT: Update a book
     if ($method === 'PUT') {
-
-        $id = filter_var(
-            $data['id'] ?? null,
-            FILTER_VALIDATE_INT
-        );
-
+        $id = filter_var($data['id'] ?? null, FILTER_VALIDATE_INT);
         $title = trim($data['title'] ?? '');
         $author = trim($data['author'] ?? '');
-        $category = trim($data['category'] ?? '');
+        $isbn = trim($data['isbn'] ?? '');
         $quantity = filter_var(
             $data['quantity'] ?? null,
             FILTER_VALIDATE_INT
         );
 
-        if (
-            !$id ||
-            $title === '' ||
-            $author === '' ||
-            $quantity === false ||
-            $quantity < 0
-        ) {
-            http_response_code(422);
-
-            echo json_encode([
-                'error' => 'Invalid book details'
+        if (!$id || $title === '' || $author === '' ||
+            $quantity === false || $quantity < 0) {
+            sendJson(422, [
+                'error' => 'Valid ID, title, author and quantity are required'
             ]);
-
-            exit;
         }
 
         $stmt = $conn->prepare(
             "UPDATE books
-             SET title = ?,
-                 author = ?,
-                 category = ?,
-                 quantity = ?,
-                 available = LEAST(
-                     available,
-                     ?
-                 )
+             SET title = ?, author = ?, isbn = NULLIF(?, ''),
+                 quantity = ?
              WHERE id = ?"
         );
 
         $stmt->bind_param(
-            "sssiii",
-            $title,
-            $author,
-            $category,
-            $quantity,
-            $quantity,
-            $id
+            'sssii', $title, $author, $isbn, $quantity, $id
         );
-
         $stmt->execute();
 
-        echo json_encode([
+        if ($stmt->affected_rows === 0) {
+            $check = $conn->prepare(
+                "SELECT id FROM books WHERE id = ?"
+            );
+            $check->bind_param('i', $id);
+            $check->execute();
+
+            if (!$check->get_result()->fetch_assoc()) {
+                sendJson(404, ['error' => 'Book not found']);
+            }
+        }
+
+        sendJson(200, [
+            'success' => true,
             'message' => 'Book updated successfully'
         ]);
-
-        exit;
     }
 
     // DELETE: Delete a book
     if ($method === 'DELETE') {
-
-        $id = filter_var(
-            $data['id'] ?? null,
-            FILTER_VALIDATE_INT
-        );
+        $id = filter_var($data['id'] ?? null, FILTER_VALIDATE_INT);
 
         if (!$id) {
-            http_response_code(422);
-
-            echo json_encode([
-                'error' => 'Valid book ID is required'
-            ]);
-
-            exit;
+            sendJson(422, ['error' => 'Valid book ID is required']);
         }
 
         $stmt = $conn->prepare(
-            "DELETE FROM books
-             WHERE id = ?
-             AND NOT EXISTS (
-                 SELECT 1
-                 FROM issued_books
-                 WHERE book_id = ?
-                 AND status = 'issued'
-             )"
+            "DELETE FROM books WHERE id = ?"
         );
-
-        $stmt->bind_param("ii", $id, $id);
+        $stmt->bind_param('i', $id);
         $stmt->execute();
 
         if ($stmt->affected_rows === 0) {
-            http_response_code(409);
-
-            echo json_encode([
-                'error' => 'Book not found or currently issued'
-            ]);
-
-            exit;
+            sendJson(404, ['error' => 'Book not found']);
         }
 
-        echo json_encode([
+        sendJson(200, [
+            'success' => true,
             'message' => 'Book deleted successfully'
         ]);
-
-        exit;
     }
 
-    header('Allow: GET, POST, PUT, DELETE');
-
-    http_response_code(405);
-
-    echo json_encode([
-        'error' => 'Method not allowed'
-    ]);
-
 } catch (Throwable $e) {
-
     error_log('Books API error: ' . $e->getMessage());
 
-    http_response_code(500);
-
-    echo json_encode([
-        'error' => 'Server error. Check server logs.'
+    sendJson(500, [
+        'error' => 'Books API failed. Check Render logs.'
     ]);
-
 }
