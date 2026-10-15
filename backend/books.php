@@ -1,5 +1,8 @@
-
 <?php
+// Errors ko screen par HTML ki tarah display hone se rokein
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
+error_reporting(E_ALL);
 
 require_once __DIR__ . '/db.php';
 
@@ -63,7 +66,8 @@ try {
         sendJson(405, ['error' => 'Method not allowed']);
     }
 
-    $data = json_decode(file_get_contents('php://input'), true);
+    $rawInput = file_get_contents('php://input');
+    $data = json_decode($rawInput, true);
 
     if (!is_array($data)) {
         sendJson(400, ['error' => 'Invalid JSON request']);
@@ -153,10 +157,6 @@ try {
     if ($method === 'DELETE') {
         $id = filter_var($data['id'] ?? null, FILTER_VALIDATE_INT);
 
-        if (!$id) {
-            sendJson(422, ['error' => 'Valid book ID is required']);
-        }
-
         $stmt = $conn->prepare(
             "DELETE FROM books WHERE id = ?"
         );
@@ -177,6 +177,7 @@ try {
     error_log('Books API error: ' . $e->getMessage());
 
     sendJson(500, [
-        'error' => 'Books API failed. Check Render logs.'
+        'error' => 'Books API failed. Check Render logs.',
+        'details' => $e->getMessage()
     ]);
 }
