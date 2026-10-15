@@ -1,14 +1,36 @@
+
 <?php
 
 require_once __DIR__ . '/db.php';
 
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
 
-$method = $_SERVER['REQUEST_METHOD'];
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+function respond($status, $data)
+{
+    http_response_code($status);
+    echo json_encode(
+        $data,
+        JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
+    );
+    exit;
+}
 
 try {
 
-    // GET: Display and search students
+    if (!isset($conn) || !($conn instanceof mysqli)) {
+        throw new RuntimeException(
+            'MySQL connection variable $conn is not available.'
+        );
+    }
+
+    $conn->set_charset('utf8mb4');
+
+    $method = $_SERVER['REQUEST_METHOD'];
+
+    // GET: List and search students
     if ($method === 'GET') {
 
         $search = trim($_GET['search'] ?? '');
@@ -22,8 +44,8 @@ try {
                  ORDER BY id DESC"
             );
 
-            $term = "%{$search}%";
-            $stmt->bind_param("ss", $term, $term);
+            $term = '%' . $search . '%';
+            $stmt->bind_param('ss', $term, $term);
             $stmt->execute();
 
             $result = $stmt->get_result();
@@ -35,7 +57,6 @@ try {
                  FROM students
                  ORDER BY id DESC"
             );
-
         }
 
         $students = [];
@@ -44,26 +65,23 @@ try {
             $students[] = $row;
         }
 
-        echo json_encode($students);
-        exit;
+        respond(200, $students);
     }
 
-    $data = json_decode(
-        file_get_contents('php://input'),
-        true
-    );
+    // Read JSON request body for write operations
+    if (!in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
+        header('Allow: GET, POST, PUT, DELETE');
+        respond(405, ['error' => 'Method not allowed']);
+    }
+
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw, true);
 
     if (!is_array($data)) {
-        http_response_code(400);
-
-        echo json_encode([
-            'error' => 'Invalid JSON data'
-        ]);
-
-        exit;
+        respond(400, ['error' => 'Invalid JSON data']);
     }
 
-    // POST: Add student
+    // POST: Register a student/member
     if ($method === 'POST') {
 
         $name = trim($data['name'] ?? '');
@@ -72,42 +90,36 @@ try {
         $phone = trim($data['phone'] ?? '');
 
         if ($name === '' || $roll === '') {
-            http_response_code(422);
-
-            echo json_encode([
+            respond(422, [
                 'error' => 'Name and roll number are required'
             ]);
+        }
 
-            exit;
+        if (
+            ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) ||
+            ($phone !== '' && !preg_match('/^[0-9+\-\s()]{7,20}$/', $phone))
+        ) {
+            respond(422, [
+                'error' => 'Please check the email address or phone number'
+            ]);
         }
 
         $stmt = $conn->prepare(
-            "INSERT INTO students
-             (name, roll_no, email, phone)
+            "INSERT INTO students (name, roll_no, email, phone)
              VALUES (?, ?, NULLIF(?, ''), NULLIF(?, ''))"
         );
 
-        $stmt->bind_param(
-            "ssss",
-            $name,
-            $roll,
-            $email,
-            $phone
-        );
-
+        $stmt->bind_param('ssss', $name, $roll, $email, $phone);
         $stmt->execute();
 
-        http_response_code(201);
-
-        echo json_encode([
-            'message' => 'Student added successfully',
+        respond(201, [
+            'success' => true,
+            'message' => 'Student registered successfully',
             'id' => $conn->insert_id
         ]);
-
-        exit;
     }
 
-    // PUT: Update student
+    // PUT: Update a student/member
     if ($method === 'PUT') {
 
         $id = filter_var(
@@ -121,26 +133,30 @@ try {
         $phone = trim($data['phone'] ?? '');
 
         if (!$id || $name === '' || $roll === '') {
-            http_response_code(422);
-
-            echo json_encode([
+            respond(422, [
                 'error' => 'Valid ID, name and roll number are required'
             ]);
+        }
 
-            exit;
+        if (
+            ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) ||
+            ($phone !== '' && !preg_match('/^[0-9+\-\s()]{7,20}$/', $phone))
+        ) {
+            respond(422, [
+                'error' => 'Please check the email address or phone number'
+            ]);
         }
 
         $stmt = $conn->prepare(
             "UPDATE students
-             SET name = ?,
-                 roll_no = ?,
+             SET name = ?, roll_no = ?,
                  email = NULLIF(?, ''),
                  phone = NULLIF(?, '')
              WHERE id = ?"
         );
 
         $stmt->bind_param(
-            "ssssi",
+            'ssssi',
             $name,
             $roll,
             $email,
@@ -150,14 +166,25 @@ try {
 
         $stmt->execute();
 
-        echo json_encode([
+        if ($stmt->affected_rows === 0) {
+            $check = $conn->prepare(
+                "SELECT id FROM students WHERE id = ?"
+            );
+            $check->bind_param('i', $id);
+            $check->execute();
+
+            if (!$check->get_result()->fetch_assoc()) {
+                respond(404, ['error' => 'Student not found']);
+            }
+        }
+
+        respond(200, [
+            'success' => true,
             'message' => 'Student updated successfully'
         ]);
-
-        exit;
     }
 
-    // DELETE: Delete student if no book is currently issued
+    // DELETE: Prevent deletion while a book is issued
     if ($method === 'DELETE') {
 
         $id = filter_var(
@@ -166,62 +193,41 @@ try {
         );
 
         if (!$id) {
-            http_response_code(422);
-
-            echo json_encode([
+            respond(422, [
                 'error' => 'Valid student ID is required'
             ]);
-
-            exit;
         }
 
         $stmt = $conn->prepare(
             "DELETE FROM students
              WHERE id = ?
              AND NOT EXISTS (
-                 SELECT 1
-                 FROM issued_books
+                 SELECT 1 FROM issued_books
                  WHERE student_id = ?
                  AND status = 'issued'
              )"
         );
 
-        $stmt->bind_param("ii", $id, $id);
+        $stmt->bind_param('ii', $id, $id);
         $stmt->execute();
 
         if ($stmt->affected_rows === 0) {
-            http_response_code(409);
-
-            echo json_encode([
+            respond(409, [
                 'error' => 'Student not found or has an issued book'
             ]);
-
-            exit;
         }
 
-        echo json_encode([
+        respond(200, [
+            'success' => true,
             'message' => 'Student deleted successfully'
         ]);
-
-        exit;
     }
-
-    header('Allow: GET, POST, PUT, DELETE');
-
-    http_response_code(405);
-
-    echo json_encode([
-        'error' => 'Method not allowed'
-    ]);
 
 } catch (Throwable $e) {
 
     error_log('Students API error: ' . $e->getMessage());
 
-    http_response_code(500);
-
-    echo json_encode([
-        'error' => 'Server error. Check server logs.'
+    respond(500, [
+        'error' => 'Server error. Check Render logs and database configuration.'
     ]);
-
 }
